@@ -4,6 +4,7 @@ GTK4/Libadwaita keyboard sound daemon for Hyprland/Linux.
 
 ![](https://github.com/schultz-dev0/RustyKeys/blob/main/assets/rustykeys.png)
 
+![](https://github.com/schultz-dev0/RustyKeys/blob/main/assets/Rustykeys_preview.png)
 ## Current Status
 
 - Per-key sound kit playback works.
