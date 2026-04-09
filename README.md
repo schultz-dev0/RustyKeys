@@ -20,7 +20,13 @@ GTK4/Libadwaita keyboard sound daemon for Hyprland/Linux.
 Example Hyprland rule:
 
 ```ini
-------
+windowrule {
+    name            = rustykeys
+    match:class     = ^(org.cloudyy.rustykeys)$
+    float           = on
+    size            = 550 420
+    center          = on
+}
 ```
 
 ## Install
