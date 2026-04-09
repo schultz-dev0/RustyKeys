@@ -17,11 +17,17 @@ GTK4/Libadwaita keyboard sound daemon for Hyprland/Linux.
 Example Hyprland rule:
 
 ```ini
-windowrulev2 = float, class:^(org.cloudyy.rustykeys)$
+------
 ```
 
 ## Install
 
+```bash
+git clone https://github.com/schultz-dev0/RustyKeys.git
+```
+```bash
+cd RustyKeys
+```
 ```bash
 ./install.sh
 ```
