@@ -1,13 +1,17 @@
+//! Theme management for app CSS and Matugen integration.
+
 use gtk::prelude::*;
 use gtk::{gdk, gio, style_context_add_provider_for_display, CssProvider};
 use std::path::{Path, PathBuf};
 
+/// Runtime CSS state and optional file monitor for live Matugen reloads.
 pub struct ThemeRuntime {
     monitor: Option<gio::FileMonitor>,
     matugen_provider: CssProvider,
 }
 
 impl ThemeRuntime {
+    /// Load app CSS plus Matugen CSS, if available.
     pub fn setup(display: &gdk::Display, asset_dir: &Path, configured_matugen: Option<&str>) -> Self {
         let app_provider = CssProvider::new();
         let app_css = asset_dir.join("style.css");
@@ -38,6 +42,7 @@ impl ThemeRuntime {
         }
     }
 
+    /// Watch Matugen CSS file and hot-reload on change.
     pub fn watch_matugen(&mut self, css_path: Option<PathBuf>) {
         let Some(path) = css_path else {
             return;
@@ -62,6 +67,7 @@ impl ThemeRuntime {
     }
 }
 
+/// Resolve Matugen CSS path from config/env/default candidate paths.
 pub fn resolve_matugen_css(configured: Option<&str>) -> Option<PathBuf> {
     if let Some(path) = configured {
         let p = PathBuf::from(path);
@@ -90,6 +96,7 @@ pub fn resolve_matugen_css(configured: Option<&str>) -> Option<PathBuf> {
         .find(|path| path.exists())
 }
 
+/// Resolve runtime assets directory.
 pub fn resolve_asset_dir() -> PathBuf {
     if let Ok(path) = std::env::var("RUSTY_KEYS_ASSET_DIR") {
         return PathBuf::from(path);

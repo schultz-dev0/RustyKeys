@@ -1,5 +1,12 @@
+//! Rusty Keys executable entrypoint.
+//!
+//! Modes:
+//! - `rusty_keys` -> launch GUI/daemon app
+//! - `rusty_keys trigger <class>` -> send local bridge trigger
+
 mod app;
 mod config;
+mod global_input;
 mod hyprland;
 mod sound;
 mod theme;
