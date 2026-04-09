@@ -120,8 +120,6 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title(APP_TITLE)
-        .default_width(420)
-        .default_height(220)
         .build();
     window.set_hide_on_close(true);
 

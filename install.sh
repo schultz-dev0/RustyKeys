@@ -9,6 +9,8 @@ CONFIG_DIR="${HOME}/.config/rustykeys"
 SOUNDS_DIR="${CONFIG_DIR}/sounds"
 DESKTOP_DIR="${HOME}/.local/share/applications"
 DESKTOP_FILE="${DESKTOP_DIR}/${APP_NAME}.desktop"
+ICON_DIR="${HOME}/.local/share/icons"
+ICON_FILE="${ICON_DIR}/rustykeys.png"
 
 log() {
   printf '[install] %s\n' "$*"
@@ -34,7 +36,7 @@ append_path_if_missing() {
   log "Updated PATH in ${rc_file}"
 }
 
-mkdir -p "$BIN_DIR" "$CONFIG_DIR" "$SOUNDS_DIR" "$DESKTOP_DIR"
+mkdir -p "$BIN_DIR" "$CONFIG_DIR" "$SOUNDS_DIR" "$DESKTOP_DIR" "$ICON_DIR" 2>/dev/null || true
 
 log "Building release binary"
 (
@@ -56,7 +58,8 @@ Version=1.0
 Type=Application
 Name=Rusty Keys
 Comment=Mechanical keyboard sound daemon
-Exec=${APP_NAME}
+Exec=bash -c "~/.local/bin/${APP_NAME}"
+Icon=~/.local/share/icons/rustykeys.png
 Terminal=false
 Categories=Utility;
 StartupNotify=false
@@ -64,6 +67,9 @@ StartupWMClass=${APP_ID}
 X-GNOME-WMClass=${APP_ID}
 EOF
 log "Wrote desktop entry to ${DESKTOP_FILE}"
+
+mv "$PROJECT_DIR"/assets/rustykeys.png "$ICON_DIR/rustykeys.png" 2>/dev/null || true
+log "Installed icon to ${ICON_DIR}"
 
 if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
   append_path_if_missing "${HOME}/.zshrc"
