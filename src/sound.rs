@@ -16,7 +16,6 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
-/// In-process sound player with per-key and per-class fallback maps.
 pub struct SoundEngine {
     enabled: bool,
     volume: f32,
@@ -28,7 +27,6 @@ pub struct SoundEngine {
 }
 
 impl SoundEngine {
-    /// Build engine state by scanning override + bundled sound directories.
     pub fn new(asset_dir: &Path) -> Self {
         let (stream, handle) = match OutputStream::try_default() {
             Ok(pair) => {
@@ -217,7 +215,6 @@ impl SoundEngine {
         self.play_default_or_class(fallback_class);
     }
 
-    /// Play from a pre-resolved sample name (used by global input backend).
     pub fn play_named(&self, sample_name: &str, fallback_class: KeyClass) {
         if !self.enabled {
             return;
@@ -236,7 +233,6 @@ impl SoundEngine {
         self.play_default_or_class(fallback_class);
     }
 
-    /// Decode and play a single sample file path.
     fn play_path(&self, path: &Path) {
         let Some(handle) = &self.handle else {
             eprintln!("[audio] no output stream handle; cannot play {}", path.display());

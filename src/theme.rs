@@ -86,7 +86,7 @@ pub fn resolve_matugen_css(configured: Option<&str>) -> Option<PathBuf> {
     let home = std::env::var("HOME").ok()?;
     let candidates = [
         format!("{home}/.config/matugen/generated/gtk-4.css"),
-        format!("{home}/.config/matugen/generated/gkt-4.css"),
+        format!("{home}/.config/matugen/generated/gtk-4.css"),
         format!("{home}/.config/matugen/generated/colors.css"),
     ];
 

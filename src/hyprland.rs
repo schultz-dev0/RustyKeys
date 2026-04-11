@@ -14,7 +14,6 @@ use std::time::Duration;
 
 const SOCKET_NAME: &str = "rusty_keys.sock";
 
-/// Resolve socket path in XDG runtime dir (or /tmp fallback).
 pub fn runtime_socket_path() -> PathBuf {
     if let Ok(dir) = std::env::var("XDG_RUNTIME_DIR") {
         return Path::new(&dir).join(SOCKET_NAME);
@@ -22,7 +21,6 @@ pub fn runtime_socket_path() -> PathBuf {
     Path::new("/tmp").join(SOCKET_NAME)
 }
 
-/// Send a one-shot class trigger payload to the local bridge socket.
 pub fn send_trigger(class: &str) -> Result<(), String> {
     let socket = UnixDatagram::unbound().map_err(|e| format!("socket create failed: {e}"))?;
     socket
@@ -31,14 +29,19 @@ pub fn send_trigger(class: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Start bridge listener thread and forward parsed classes to the app.
 pub fn start_bridge(tx: Sender<KeyClass>) -> Result<thread::JoinHandle<()>, String> {
     let path = runtime_socket_path();
-    if path.exists() {
-        fs::remove_file(&path).map_err(|e| format!("remove stale socket failed: {e}"))?;
-    }
 
-    let sock = UnixDatagram::bind(&path).map_err(|e| format!("bind bridge socket failed: {e}"))?;
+    let sock = match UnixDatagram::bind(&path) {
+        Ok(s) => s,
+        Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
+            fs::remove_file(&path)
+                .map_err(|e| format!("remove stale socket failed: {e}"))?;
+            UnixDatagram::bind(&path)
+                .map_err(|e| format!("bind bridge socket failed: {e}"))?
+        }
+        Err(err) => return Err(format!("bind bridge socket failed: {err}")),
+    };
     sock.set_nonblocking(true)
         .map_err(|e| format!("set nonblocking failed: {e}"))?;
 
@@ -50,6 +53,7 @@ pub fn start_bridge(tx: Sender<KeyClass>) -> Result<thread::JoinHandle<()>, Stri
                     let value = String::from_utf8_lossy(&buffer[..len]).to_string();
                     let key = KeyClass::from_wire(&value);
                     if tx.send(key).is_err() {
+                        eprintln!("[bridge] receiver dropped, bridge thread exiting");
                         break;
                     }
                 }

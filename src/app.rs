@@ -46,7 +46,6 @@ fn classify_keyval(keyval: gtk::gdk::Key) -> KeyClass {
     }
 }
 
-/// Run the Libadwaita application event loop.
 pub fn run() {
     let _ = adw::init();
 
@@ -97,7 +96,6 @@ pub fn run() {
     app.run();
 }
 
-/// Construct the application window and wire all runtime subsystems.
 fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     let cfg = Rc::new(RefCell::new(config::load()));
     let asset_dir = theme::resolve_asset_dir();
@@ -173,7 +171,7 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     window.set_content(Some(&root));
 
     window.connect_close_request(|w| {
-        // Hard rule: normal window close hides only; daemon continues running.
+        // RUle, window close => daemon keeps runnin
         w.set_visible(false);
         glib::Propagation::Stop
     });
@@ -182,7 +180,6 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
         let app = app.clone();
         let exit_requested = exit_requested.clone();
         exit_button.connect_clicked(move |_| {
-            // Full process termination is allowed only from this explicit action.
             exit_requested.set(true);
             app.quit();
         });
@@ -197,6 +194,8 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
         theme_runtime.watch_matugen(theme::resolve_matugen_css(
             cfg.borrow().matugen_css_path.as_deref(),
         ));
+        // ThemeRuntime holds a file monitor that needs to be alive for the process lifetime
+        // Since there is no owner to attach to I extend its lifeime to static. 
         let _ = Box::leak(Box::new(theme_runtime));
     }
 
@@ -213,7 +212,6 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
         });
     }
 
-    // Window-focused key fallback path (useful when evdev global input is unavailable).
     let key_controller = gtk::EventControllerKey::new();
     {
         let sound_for_keys = sound.clone();
@@ -290,7 +288,6 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     app.add_action(&present);
     app.set_accels_for_action("app.present", &["<Primary>k"]);
 
-    let hold_guard = app.hold();
-    std::mem::forget(hold_guard);
+    let _hold_guard = std::mem::ManuallyDrop::new(app.hold());
     window.present();
 }

@@ -11,7 +11,6 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
-/// Logical key buckets used when exact key names are not available.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum KeyClass {
@@ -23,7 +22,6 @@ pub enum KeyClass {
 }
 
 impl KeyClass {
-    /// Parse wire values used by the local trigger bridge.
     pub fn from_wire(value: &str) -> Self {
         match value.trim().to_ascii_lowercase().as_str() {
             "space" => Self::Space,
@@ -35,7 +33,6 @@ impl KeyClass {
     }
 }
 
-/// User-configurable runtime settings persisted in TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub enabled: bool,
@@ -67,14 +64,10 @@ pub fn config_path() -> PathBuf {
     config_dir().join("config.toml")
 }
 
-/// Path for user-provided override sound kits.
-///
-/// If users drop matching sample names in this directory, those files override bundled assets.
 pub fn override_sounds_dir() -> PathBuf {
     config_dir().join("sounds")
 }
 
-/// Load configuration from disk, returning defaults when absent/invalid.
 pub fn load() -> AppConfig {
     let path = config_path();
     let Ok(raw) = fs::read_to_string(path) else {
@@ -84,7 +77,6 @@ pub fn load() -> AppConfig {
     toml::from_str(&raw).unwrap_or_default()
 }
 
-/// Persist configuration atomically.
 pub fn save(cfg: &AppConfig) -> Result<(), String> {
     let path = config_path();
     if let Some(parent) = path.parent() {

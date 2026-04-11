@@ -18,7 +18,6 @@ pub struct GlobalKeyEvent {
     pub fallback_class: KeyClass,
 }
 
-/// Start global input workers and return `(supervisor_handle, device_count)`.
 pub fn start_global_listener(
     tx: Sender<GlobalKeyEvent>,
 ) -> Result<(thread::JoinHandle<()>, usize), String> {
@@ -27,7 +26,6 @@ pub fn start_global_listener(
         return Err(String::from("no readable keyboard device found (evdev)"));
     }
 
-    // Prefer physical keyboards. If none are available, fall back to virtual ones.
     let mut selected: Vec<(PathBuf, Device)> = candidates
         .drain(..)
         .filter(|(_, dev)| !is_virtual_keyboard(dev))
@@ -65,14 +63,17 @@ pub fn start_global_listener(
                             }
                         }
                     }
-                    Err(_) => {
+                    Err(err) => {
+                        eprintln!(
+                            "[input] fetch_events error on {} ({name}): {err}",
+                            path.display()
+                        );
                         thread::sleep(Duration::from_millis(8));
                     }
                 }
             });
         }
 
-        // Keep the supervisor alive while worker threads run.
         loop {
             thread::sleep(Duration::from_secs(60));
         }
@@ -109,7 +110,6 @@ fn is_virtual_keyboard(dev: &Device) -> bool {
     name.contains("virtual") || name.contains("openlinkhub") || name.contains("uinput")
 }
 
-/// Convert evdev key codes into sample names and fallback classes.
 fn map_key(key: Key) -> GlobalKeyEvent {
     let (sample_name, fallback_class) = match key {
         Key::KEY_SPACE => (Some("space".to_string()), KeyClass::Space),
@@ -145,7 +145,6 @@ fn map_key(key: Key) -> GlobalKeyEvent {
     }
 }
 
-/// Convert alpha evdev keys into lowercase sample names.
 fn alpha_key_to_char(key: Key) -> Option<char> {
     match key {
         Key::KEY_A => Some('a'),
