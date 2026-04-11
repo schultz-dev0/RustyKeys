@@ -1,5 +1,7 @@
 # Rusty Keys
 
+Disclaimer: This project is written with help from AI (not vibecoded), specifically Codex 5.3 in Github copilot. AI makes mistakes and I sometimes do not notice if it makes a mistake. 
+
 GTK4/Libadwaita keyboard sound daemon for Hyprland/Linux.
 
 ![](https://github.com/schultz-dev0/RustyKeys/blob/main/assets/rustykeys.png)
