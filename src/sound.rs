@@ -12,6 +12,7 @@ use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use tracing::{debug, error, info, warn};
 
 pub struct SoundEngine {
     enabled: bool,
@@ -27,11 +28,11 @@ impl SoundEngine {
     pub fn new(asset_dir: &Path) -> Self {
         let (stream, handle) = match OutputStream::try_default() {
             Ok(pair) => {
-                eprintln!("[audio] output stream initialized");
+                info!("output stream initialized");
                 (Some(pair.0), Some(pair.1))
             }
             Err(err) => {
-                eprintln!("[audio] failed to initialize output stream: {err}");
+                error!("failed to initialize output stream: {err}");
                 (None, None)
             }
         };
@@ -39,8 +40,8 @@ impl SoundEngine {
         let bundled_sounds_dir = asset_dir.join("sounds");
         let override_sounds_dir = config::override_sounds_dir();
         if let Err(err) = fs::create_dir_all(&override_sounds_dir) {
-            eprintln!(
-                "[audio] failed to ensure override dir {}: {err}",
+            warn!(
+                "failed to ensure override dir {}: {err}",
                 override_sounds_dir.display()
             );
         }
@@ -150,8 +151,8 @@ impl SoundEngine {
             "].wav",
         );
 
-        eprintln!(
-            "[audio] bundled_sounds={} override_sounds={} key_samples={} default={} ",
+        debug!(
+            "bundled_sounds={} override_sounds={} key_samples={} default={}",
             bundled_sounds_dir.display(),
             override_sounds_dir.display(),
             key_sounds.len(),
@@ -202,11 +203,12 @@ impl SoundEngine {
             return;
         }
 
-        if let Some(sample_name) = sample_name_for_key(keyval) {
-            if let Some(path) = self.key_sounds.get(sample_name) {
-                self.play_path(path);
-                return;
-            }
+        if let Some(path) = sample_name_for_key(keyval)
+            .as_deref()
+            .and_then(|n| self.key_sounds.get(n))
+        {
+            self.play_path(path);
+            return;
         }
 
         self.play_default_or_class(fallback_class);
@@ -232,24 +234,24 @@ impl SoundEngine {
 
     fn play_path(&self, path: &Path) {
         let Some(handle) = &self.handle else {
-            eprintln!("[audio] no output stream handle; cannot play {}", path.display());
+            warn!("no output stream handle; cannot play {}", path.display());
             return;
         };
         if !path.exists() {
-            eprintln!("[audio] sample not found: {}", path.display());
+            warn!("sample not found: {}", path.display());
             return;
         }
 
         let Ok(file) = File::open(path) else {
-            eprintln!("[audio] cannot open sample: {}", path.display());
+            error!("cannot open sample: {}", path.display());
             return;
         };
         let Ok(decoder) = Decoder::new(BufReader::new(file)) else {
-            eprintln!("[audio] cannot decode sample: {}", path.display());
+            error!("cannot decode sample: {}", path.display());
             return;
         };
         let Ok(sink) = Sink::try_new(handle) else {
-            eprintln!("[audio] failed to create sink for sample: {}", path.display());
+            error!("failed to create sink for sample: {}", path.display());
             return;
         };
 
@@ -287,7 +289,7 @@ impl SoundEngine {
 fn ensure_default_sound(override_dir: &Path, bundled_dir: &Path) -> Option<PathBuf> {
     let override_default = override_dir.join("default.wav");
     if override_default.exists() {
-        eprintln!("[audio] default sample present: {}", override_default.display());
+        debug!("default sample present: {}", override_default.display());
         return Some(override_default);
     }
 
@@ -299,14 +301,14 @@ fn ensure_default_sound(override_dir: &Path, bundled_dir: &Path) -> Option<PathB
 
     if source.exists() {
         if fs::copy(&source, &override_default).is_ok() {
-            eprintln!(
-                "[audio] created default sample from a.wav: {}",
+            debug!(
+                "created default sample from a.wav: {}",
                 override_default.display()
             );
             return Some(override_default);
         }
-        eprintln!(
-            "[audio] failed to copy {} to {}",
+        warn!(
+            "failed to copy {} to {}",
             source.display(),
             override_default.display()
         );
@@ -314,12 +316,12 @@ fn ensure_default_sound(override_dir: &Path, bundled_dir: &Path) -> Option<PathB
 
     let bundled_default = bundled_dir.join("default.wav");
     if bundled_default.exists() {
-        eprintln!("[audio] using bundled default sample: {}", bundled_default.display());
+        debug!("using bundled default sample: {}", bundled_default.display());
         return Some(bundled_default);
     }
 
-    eprintln!(
-        "[audio] default sample unavailable (missing a.wav/default.wav) in {}",
+    warn!(
+        "default sample unavailable (missing a.wav/default.wav) in {}",
         override_dir.display()
     );
 
@@ -366,14 +368,14 @@ fn resolve_sound(override_dir: &Path, bundled_dir: &Path, file: &str) -> Option<
 }
 
 /// Map GTK key values to sample names used by the sound kit.
-fn sample_name_for_key(key: Key) -> Option<&'static str> {
+fn sample_name_for_key(key: Key) -> Option<String> {
     use gtk::gdk::Key;
 
     match key {
-        Key::space => Some("space"),
-        Key::Return | Key::KP_Enter => Some("enter"),
-        Key::BackSpace => Some("backspace"),
-        Key::Tab => Some("tab"),
+        Key::space => Some("space".into()),
+        Key::Return | Key::KP_Enter => Some("enter".into()),
+        Key::BackSpace => Some("backspace".into()),
+        Key::Tab => Some("tab".into()),
         Key::Shift_L
         | Key::Shift_R
         | Key::Control_L
@@ -383,41 +385,13 @@ fn sample_name_for_key(key: Key) -> Option<&'static str> {
         | Key::Meta_L
         | Key::Meta_R
         | Key::Super_L
-        | Key::Super_R => Some("shift"),
-        Key::Caps_Lock => Some("caps_lock"),
-        Key::bracketleft => Some("bracketleft"),
-        Key::bracketright => Some("bracketright"),
+        | Key::Super_R => Some("shift".into()),
+        Key::Caps_Lock => Some("caps_lock".into()),
+        Key::bracketleft => Some("bracketleft".into()),
+        Key::bracketright => Some("bracketright".into()),
         _ => key.to_unicode().and_then(|ch| {
             if ch.is_ascii_alphabetic() {
-                match ch.to_ascii_lowercase() {
-                    'a' => Some("a"),
-                    'b' => Some("b"),
-                    'c' => Some("c"),
-                    'd' => Some("d"),
-                    'e' => Some("e"),
-                    'f' => Some("f"),
-                    'g' => Some("g"),
-                    'h' => Some("h"),
-                    'i' => Some("i"),
-                    'j' => Some("j"),
-                    'k' => Some("k"),
-                    'l' => Some("l"),
-                    'm' => Some("m"),
-                    'n' => Some("n"),
-                    'o' => Some("o"),
-                    'p' => Some("p"),
-                    'q' => Some("q"),
-                    'r' => Some("r"),
-                    's' => Some("s"),
-                    't' => Some("t"),
-                    'u' => Some("u"),
-                    'v' => Some("v"),
-                    'w' => Some("w"),
-                    'x' => Some("x"),
-                    'y' => Some("y"),
-                    'z' => Some("z"),
-                    _ => None,
-                }
+                Some(ch.to_ascii_lowercase().to_string())
             } else {
                 None
             }

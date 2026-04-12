@@ -17,6 +17,7 @@ use libadwaita::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc;
+use tracing::{error, info, warn};
 
 /// Hyprland-visible app_id/class for configuration
 pub const APP_ID: &str = "org.cloudyy.rustykeys";
@@ -50,25 +51,25 @@ pub fn run() {
     let _ = adw::init();
 
     let app = adw::Application::builder().application_id(APP_ID).build();
-    eprintln!("[app] app_id/class: {APP_ID}");
+    info!("app_id/class: {APP_ID}");
     app.set_accels_for_action("app.quit", &[]);
 
     let exit_requested = Rc::new(Cell::new(false));
 
-    {
-        let exit_requested = exit_requested.clone();
-        app.connect_activate(move |app| {
+    app.connect_activate(glib::clone!(
+        #[strong] exit_requested,
+        move |app| {
             if let Some(existing) = app.windows().first() {
                 existing.present();
                 return;
             }
             build_ui(app, exit_requested.clone());
-        });
-    }
+        }
+    ));
 
-    {
-        let exit_requested = exit_requested.clone();
-        app.connect_window_removed(move |app, _window| {
+    app.connect_window_removed(glib::clone!(
+        #[strong] exit_requested,
+        move |app, _window| {
             if exit_requested.get() {
                 return;
             }
@@ -79,19 +80,17 @@ pub fn run() {
                     win.set_visible(false);
                 }
             }
-        });
-    }
+        }
+    ));
 
-    {
-        let exit_requested = exit_requested.clone();
-        app.connect_shutdown(move |_| {
+    app.connect_shutdown(glib::clone!(
+        #[strong] exit_requested,
+        move |_| {
             if !exit_requested.get() {
-                eprintln!(
-                    "rusty_keys: shutdown happened without Exit button; compositor may have forced close"
-                );
+                warn!("shutdown happened without Exit button; compositor may have forced close");
             }
-        });
-    }
+        }
+    ));
 
     app.run();
 }
@@ -99,10 +98,10 @@ pub fn run() {
 fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     let cfg = Rc::new(RefCell::new(config::load()));
     let asset_dir = theme::resolve_asset_dir();
-    eprintln!("[app] starting Rusty Keys");
-    eprintln!("[app] asset dir: {}", asset_dir.display());
-    eprintln!(
-        "[app] config: enabled={} volume={:.2}",
+    info!("starting Rusty Keys");
+    info!("asset dir: {}", asset_dir.display());
+    info!(
+        "config: enabled={} volume={:.2}",
         cfg.borrow().enabled,
         cfg.borrow().volume
     );
@@ -171,76 +170,79 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     window.set_content(Some(&root));
 
     window.connect_close_request(|w| {
-        // RUle, window close => daemon keeps runnin
+        // window close => daemon keeps running
         w.set_visible(false);
         glib::Propagation::Stop
     });
 
-    {
-        let app = app.clone();
-        let exit_requested = exit_requested.clone();
-        exit_button.connect_clicked(move |_| {
+    exit_button.connect_clicked(glib::clone!(
+        #[strong] exit_requested,
+        #[strong] app,
+        move |_| {
             exit_requested.set(true);
             app.quit();
-        });
-    }
+        }
+    ));
 
     if let Some(display) = gtk::gdk::Display::default() {
-        let mut theme_runtime = theme::ThemeRuntime::setup(
+        let mut rt = theme::ThemeRuntime::setup(
             &display,
             &asset_dir,
             cfg.borrow().matugen_css_path.as_deref(),
         );
-        theme_runtime.watch_matugen(theme::resolve_matugen_css(
+        rt.watch_matugen(theme::resolve_matugen_css(
             cfg.borrow().matugen_css_path.as_deref(),
         ));
-        // ThemeRuntime holds a file monitor that needs to be alive for the process lifetime
-        // Since there is no owner to attach to I extend its lifeime to static. 
-        let _ = Box::leak(Box::new(theme_runtime));
+        // Hold ThemeRuntime in a RefCell so the Fn destroy handler can release it.
+        let rt = Rc::new(RefCell::new(Some(rt)));
+        window.connect_destroy(glib::clone!(
+            #[strong] rt,
+            move |_| { rt.borrow_mut().take(); }
+        ));
     }
 
-    {
-        let cfg = cfg.clone();
-        let sound = sound.clone();
-        enabled_row.connect_active_notify(move |row| {
+    enabled_row.connect_active_notify(glib::clone!(
+        #[strong] cfg,
+        #[strong] sound,
+        move |row| {
             let state = row.is_active();
             sound.borrow_mut().set_enabled(state);
             cfg.borrow_mut().enabled = state;
             if let Err(err) = config::save(&cfg.borrow()) {
-                eprintln!("save config failed: {err}");
+                error!("save config failed: {err}");
             }
-        });
-    }
+        }
+    ));
 
     let key_controller = gtk::EventControllerKey::new();
-    {
-        let sound_for_keys = sound.clone();
-        key_controller.connect_key_pressed(move |_, keyval, _keycode, _state| {
+    key_controller.connect_key_pressed(glib::clone!(
+        #[strong] sound,
+        move |_, keyval, _keycode, _state| {
             let class = classify_keyval(keyval);
-            sound_for_keys.borrow().play_keyval(keyval, class);
+            sound.borrow().play_keyval(keyval, class);
             glib::Propagation::Proceed
-        });
-    }
+        }
+    ));
     window.add_controller(key_controller);
 
-    {
-        let cfg = cfg.clone();
-        let sound = sound.clone();
-        slider.connect_value_changed(move |s| {
+    slider.connect_value_changed(glib::clone!(
+        #[strong] cfg,
+        #[strong] sound,
+        move |s| {
             let value = s.value().clamp(0.0, 1.0) as f32;
             sound.borrow_mut().set_volume(value);
             cfg.borrow_mut().volume = value;
             if let Err(err) = config::save(&cfg.borrow()) {
-                eprintln!("save config failed: {err}");
+                error!("save config failed: {err}");
             }
-        });
-    }
+        }
+    ));
 
     let (tx, rx) = mpsc::channel::<KeyClass>();
     match hyprland::start_bridge(tx) {
-        Ok(_handle) => eprintln!("[bridge] local trigger socket active"),
+        Ok(_handle) => info!("local trigger socket active"),
         Err(err) => {
-            eprintln!("[bridge] failed to start: {err}");
+            error!("bridge failed to start: {err}");
             status.set_text(&format!("Bridge error: {err}"));
         }
     }
@@ -248,11 +250,11 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     let (global_tx, global_rx) = mpsc::channel::<GlobalKeyEvent>();
     match global_input::start_global_listener(global_tx) {
         Ok((_handle, count)) => {
-            eprintln!("[input] global input active (evdev), devices={count}");
+            info!("global input active (evdev), devices={count}");
             status.set_text(&format!("Global input: active (evdev, {count} device(s))"));
         }
         Err(err) => {
-            eprintln!("[input] global input unavailable: {err}");
+            warn!("global input unavailable: {err}");
             status.set_text(&format!(
                 "Global input unavailable ({err}); window focus fallback active"
             ));
@@ -279,12 +281,10 @@ fn build_ui(app: &adw::Application, exit_requested: Rc<Cell<bool>>) {
     });
 
     let present = gio::SimpleAction::new("present", None);
-    {
-        let window = window.clone();
-        present.connect_activate(move |_, _| {
-            window.present();
-        });
-    }
+    present.connect_activate(glib::clone!(
+        #[strong] window,
+        move |_, _| window.present()
+    ));
     app.add_action(&present);
     app.set_accels_for_action("app.present", &["<Primary>k"]);
 

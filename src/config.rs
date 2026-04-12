@@ -5,6 +5,7 @@
 //! -- User directories for custom sound kits
 //! -- Shared key class parsing
 
+use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -77,28 +78,25 @@ pub fn load() -> AppConfig {
     toml::from_str(&raw).unwrap_or_default()
 }
 
-pub fn save(cfg: &AppConfig) -> Result<(), String> {
+pub fn save(cfg: &AppConfig) -> Result<()> {
     let path = config_path();
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("create config dir failed: {e}"))?;
+        fs::create_dir_all(parent).context("create config dir failed")?;
     }
 
-    let serialized = toml::to_string_pretty(cfg)
-        .map_err(|e| format!("serialize config failed: {e}"))?;
+    let serialized = toml::to_string_pretty(cfg).context("serialize config failed")?;
 
     let parent = path
         .parent()
-        .ok_or_else(|| String::from("config parent path missing"))?;
+        .context("config parent path missing")?;
     let mut temp = tempfile::NamedTempFile::new_in(parent)
-        .map_err(|e| format!("create temp config failed: {e}"))?;
+        .context("create temp config failed")?;
 
     temp.write_all(serialized.as_bytes())
-        .map_err(|e| format!("write temp config failed: {e}"))?;
-    temp.flush()
-        .map_err(|e| format!("flush temp config failed: {e}"))?;
+        .context("write temp config failed")?;
+    temp.flush().context("flush temp config failed")?;
 
-    temp.persist(&path)
-        .map_err(|e| format!("persist config failed: {e}"))?;
+    temp.persist(&path).context("persist config failed")?;
 
     Ok(())
 }

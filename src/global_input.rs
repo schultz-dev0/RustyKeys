@@ -5,11 +5,13 @@
 //! virtual keyboard devices when possible.
 
 use crate::config::KeyClass;
+use anyhow::{bail, Result};
 use evdev::{enumerate, Device, InputEventKind, Key};
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
+use tracing::{error, info};
 
 /// Global key event payload passed to the audio loop.
 #[derive(Debug, Clone)]
@@ -20,10 +22,10 @@ pub struct GlobalKeyEvent {
 
 pub fn start_global_listener(
     tx: Sender<GlobalKeyEvent>,
-) -> Result<(thread::JoinHandle<()>, usize), String> {
+) -> Result<(thread::JoinHandle<()>, usize)> {
     let mut candidates = pick_keyboard_devices();
     if candidates.is_empty() {
-        return Err(String::from("no readable keyboard device found (evdev)"));
+        bail!("no readable keyboard device found (evdev)");
     }
 
     let mut selected: Vec<(PathBuf, Device)> = candidates
@@ -35,7 +37,7 @@ pub fn start_global_listener(
     }
 
     let selected_count = selected.len();
-    eprintln!("[input] selected {selected_count} keyboard device(s)");
+    info!("selected {selected_count} keyboard device(s)");
 
     let supervisor = thread::spawn(move || {
         for (path, mut keyboard) in selected {
@@ -45,7 +47,7 @@ pub fn start_global_listener(
                 .map(ToString::to_string)
                 .unwrap_or_else(|| String::from("unnamed"));
 
-            eprintln!("[input] listening on {} ({name})", path.display());
+            info!("listening on {} ({name})", path.display());
 
             thread::spawn(move || loop {
                 match keyboard.fetch_events() {
@@ -64,8 +66,8 @@ pub fn start_global_listener(
                         }
                     }
                     Err(err) => {
-                        eprintln!(
-                            "[input] fetch_events error on {} ({name}): {err}",
+                        error!(
+                            "fetch_events error on {} ({name}): {err}",
                             path.display()
                         );
                         thread::sleep(Duration::from_millis(8));
@@ -93,11 +95,15 @@ fn pick_keyboard_devices() -> Vec<(PathBuf, Device)> {
     devices
 }
 
-/// Heuristic keyboard filter: must expose both alpha and enter keys.
+/// Heuristic keyboard filter: requires a spread of common keys, not just two.
 fn is_keyboard_candidate(dev: &Device) -> bool {
-    let keys = dev.supported_keys();
-    keys.map(|k| k.contains(Key::KEY_A) && k.contains(Key::KEY_ENTER))
-        .unwrap_or(false)
+    let Some(keys) = dev.supported_keys() else {
+        return false;
+    };
+    // A real keyboard will have alpha, enter, space and backspace; media pads won't.
+    [Key::KEY_A, Key::KEY_S, Key::KEY_ENTER, Key::KEY_SPACE, Key::KEY_BACKSPACE]
+        .iter()
+        .all(|&k| keys.contains(k))
 }
 
     /// Identify obvious virtual keyboard sources so physical devices are preferred.
@@ -146,33 +152,14 @@ fn map_key(key: Key) -> GlobalKeyEvent {
 }
 
 fn alpha_key_to_char(key: Key) -> Option<char> {
-    match key {
-        Key::KEY_A => Some('a'),
-        Key::KEY_B => Some('b'),
-        Key::KEY_C => Some('c'),
-        Key::KEY_D => Some('d'),
-        Key::KEY_E => Some('e'),
-        Key::KEY_F => Some('f'),
-        Key::KEY_G => Some('g'),
-        Key::KEY_H => Some('h'),
-        Key::KEY_I => Some('i'),
-        Key::KEY_J => Some('j'),
-        Key::KEY_K => Some('k'),
-        Key::KEY_L => Some('l'),
-        Key::KEY_M => Some('m'),
-        Key::KEY_N => Some('n'),
-        Key::KEY_O => Some('o'),
-        Key::KEY_P => Some('p'),
-        Key::KEY_Q => Some('q'),
-        Key::KEY_R => Some('r'),
-        Key::KEY_S => Some('s'),
-        Key::KEY_T => Some('t'),
-        Key::KEY_U => Some('u'),
-        Key::KEY_V => Some('v'),
-        Key::KEY_W => Some('w'),
-        Key::KEY_X => Some('x'),
-        Key::KEY_Y => Some('y'),
-        Key::KEY_Z => Some('z'),
-        _ => None,
-    }
+    // QWERTY rows laid out as a flat pair table; avoids a 26-arm match.
+    const KEYS: [(Key, char); 26] = [
+        (Key::KEY_Q, 'q'), (Key::KEY_W, 'w'), (Key::KEY_E, 'e'), (Key::KEY_R, 'r'), (Key::KEY_T, 't'),
+        (Key::KEY_Y, 'y'), (Key::KEY_U, 'u'), (Key::KEY_I, 'i'), (Key::KEY_O, 'o'), (Key::KEY_P, 'p'),
+        (Key::KEY_A, 'a'), (Key::KEY_S, 's'), (Key::KEY_D, 'd'), (Key::KEY_F, 'f'), (Key::KEY_G, 'g'),
+        (Key::KEY_H, 'h'), (Key::KEY_J, 'j'), (Key::KEY_K, 'k'), (Key::KEY_L, 'l'),
+        (Key::KEY_Z, 'z'), (Key::KEY_X, 'x'), (Key::KEY_C, 'c'), (Key::KEY_V, 'v'), (Key::KEY_B, 'b'),
+        (Key::KEY_N, 'n'), (Key::KEY_M, 'm'),
+    ];
+    KEYS.iter().find(|&&(k, _)| k == key).map(|&(_, c)| c)
 }

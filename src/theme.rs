@@ -25,15 +25,15 @@ impl ThemeRuntime {
         }
 
         let matugen_provider = CssProvider::new();
-        if let Some(path) = resolve_matugen_css(configured_matugen) {
-            if path.exists() {
-                matugen_provider.load_from_path(&path);
-                style_context_add_provider_for_display(
-                    display,
-                    &matugen_provider,
-                    gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-                );
-            }
+        if let Some(path) = resolve_matugen_css(configured_matugen)
+            && path.exists()
+        {
+            matugen_provider.load_from_path(&path);
+            style_context_add_provider_for_display(
+                display,
+                &matugen_provider,
+                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+            );
         }
 
         Self {
@@ -85,7 +85,6 @@ pub fn resolve_matugen_css(configured: Option<&str>) -> Option<PathBuf> {
 
     let home = std::env::var("HOME").ok()?;
     let candidates = [
-        format!("{home}/.config/matugen/generated/gtk-4.css"),
         format!("{home}/.config/matugen/generated/gtk-4.css"),
         format!("{home}/.config/matugen/generated/colors.css"),
     ];
