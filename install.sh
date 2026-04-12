@@ -68,7 +68,7 @@ X-GNOME-WMClass=${APP_ID}
 EOF
 log "Wrote desktop entry to ${DESKTOP_FILE}"
 
-mv "$PROJECT_DIR"/assets/rustykeys.png "$ICON_DIR/rustykeys.png" 2>/dev/null || true
+cp "$PROJECT_DIR"/assets/rustykeys.png "$ICON_DIR/rustykeys.png" 2>/dev/null || true
 log "Installed icon to ${ICON_DIR}"
 
 if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
