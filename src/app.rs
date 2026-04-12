@@ -1,9 +1,9 @@
-//! Main GTK/libadwaita application shell for Rusty Keys.
-//!
-//! This module owns daemon-style lifecycle behavior:
-//! - close window => hide to background
-//! - explicit Exit button => full process quit
-//! - unexpected window removal => auto-recreate hidden window
+//! Main UI components shell
+//! 
+//! This module owns the actual daemon behavior:
+//! -- close window => hide to background, keep running
+//! -- unexpected window removal => auto-recreate hidden window
+//! -- exit button => full process quit
 
 use crate::config::{self, KeyClass};
 use crate::global_input::{self, GlobalKeyEvent};
@@ -18,7 +18,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc;
 
-/// Hyprland-visible app_id/class for window rules.
+/// Hyprland-visible app_id/class for configuration
 pub const APP_ID: &str = "org.cloudyy.rustykeys";
 
 /// User-facing window title.

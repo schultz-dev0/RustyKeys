@@ -1,11 +1,8 @@
-//! Sound playback engine for Rusty Keys.
-//!
-//! Resolution order for each sample:
-//! 1) User override directory (~/.config/rustykeys/sounds)
-//! 2) Bundled app assets (assets/sounds)
-//!
-//! Unknown keys fall back to `default.wav`, which is auto-created from `a.wav`
-//! when missing.
+//! Sound playback
+//! 
+//! 1. Useroveride dir ~/.config/rustkeys/sounds is checked first
+//! 2. Then bundled assets is checked
+//! 3. Unknown keys fall back to `default.wav`
 
 use crate::config::{self, KeyClass};
 use gtk::gdk::Key;

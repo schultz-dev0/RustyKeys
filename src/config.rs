@@ -1,9 +1,9 @@
-//! Configuration and path helpers for Rusty Keys.
-//!
+//! Config and path helpers
+//! 
 //! This module owns:
-//! - Persistent app settings serialization
-//! - User override directories (for replaceable sound kits)
-//! - Shared key-class parsing used by bridge/global input flows
+//! -- App settings
+//! -- User directories for custom sound kits
+//! -- Shared key class parsing
 
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
