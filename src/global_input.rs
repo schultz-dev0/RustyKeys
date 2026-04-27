@@ -1,9 +1,3 @@
-//! Global keyboard input backend based on Linux evdev.
-//!
-//! This listener feeds key events into the app even when the Rusty Keys window
-//! is unfocused. It prefers physical keyboard devices and ignores obvious
-//! virtual keyboard devices when possible.
-
 use crate::config::KeyClass;
 use anyhow::{bail, Result};
 use evdev::{enumerate, Device, InputEventKind, Key};
@@ -13,7 +7,6 @@ use std::thread;
 use std::time::Duration;
 use tracing::{error, info};
 
-/// Global key event payload passed to the audio loop.
 #[derive(Debug, Clone)]
 pub struct GlobalKeyEvent {
     pub sample_name: Option<String>,
@@ -25,7 +18,7 @@ pub fn start_global_listener(
 ) -> Result<(thread::JoinHandle<()>, usize)> {
     let mut candidates = pick_keyboard_devices();
     if candidates.is_empty() {
-        bail!("no readable keyboard device found (evdev)");
+        bail!("No readable keyboard devices found");
     }
 
     let mut selected: Vec<(PathBuf, Device)> = candidates
@@ -37,7 +30,7 @@ pub fn start_global_listener(
     }
 
     let selected_count = selected.len();
-    info!("selected {selected_count} keyboard device(s)");
+    info!("Monitoring {selected_count} keyboard(s)");
 
     let supervisor = thread::spawn(move || {
         for (path, mut keyboard) in selected {
@@ -70,7 +63,7 @@ pub fn start_global_listener(
                             "fetch_events error on {} ({name}): {err}",
                             path.display()
                         );
-                        thread::sleep(Duration::from_millis(8));
+                        thread::sleep(Duration::from_millis(10));
                     }
                 }
             });
@@ -84,7 +77,6 @@ pub fn start_global_listener(
     Ok((supervisor, selected_count))
 }
 
-/// Enumerate all keyboard-capable devices.
 fn pick_keyboard_devices() -> Vec<(PathBuf, Device)> {
     let mut devices = Vec::new();
     for (path, dev) in enumerate() {
@@ -95,18 +87,17 @@ fn pick_keyboard_devices() -> Vec<(PathBuf, Device)> {
     devices
 }
 
-/// Heuristic keyboard filter: requires a spread of common keys, not just two.
+// Check if a device looks like a real keyboard by checking for common keys
 fn is_keyboard_candidate(dev: &Device) -> bool {
     let Some(keys) = dev.supported_keys() else {
         return false;
     };
-    // A real keyboard will have alpha, enter, space and backspace; media pads won't.
     [Key::KEY_A, Key::KEY_S, Key::KEY_ENTER, Key::KEY_SPACE, Key::KEY_BACKSPACE]
         .iter()
         .all(|&k| keys.contains(k))
 }
 
-    /// Identify obvious virtual keyboard sources so physical devices are preferred.
+// Filter out common virtual/software devices
 fn is_virtual_keyboard(dev: &Device) -> bool {
     let name = dev
         .name()
@@ -139,7 +130,6 @@ fn map_key(key: Key) -> GlobalKeyEvent {
             if let Some(ch) = alpha_key_to_char(key) {
                 (Some(ch.to_string()), KeyClass::Normal)
             } else {
-                // For obscure/unmapped keys, force default.wav path in the sound engine.
                 (Some("default".to_string()), KeyClass::Normal)
             }
         }
@@ -152,10 +142,10 @@ fn map_key(key: Key) -> GlobalKeyEvent {
 }
 
 fn alpha_key_to_char(key: Key) -> Option<char> {
-    // QWERTY rows laid out as a flat pair table; avoids a 26-arm match.
+    // Basic QWERTY mapping
     const KEYS: [(Key, char); 26] = [
         (Key::KEY_Q, 'q'), (Key::KEY_W, 'w'), (Key::KEY_E, 'e'), (Key::KEY_R, 'r'), (Key::KEY_T, 't'),
-        (Key::KEY_Y, 'y'), (Key::KEY_U, 'u'), (Key::KEY_I, 'i'), (Key::KEY_O, 'o'), (Key::KEY_P, 'p'),
+        (Key::KEY_Y, 'y'), (Key::KEY_I, 'i'), (Key::KEY_O, 'o'), (Key::KEY_P, 'p'), (Key::KEY_U, 'u'),
         (Key::KEY_A, 'a'), (Key::KEY_S, 's'), (Key::KEY_D, 'd'), (Key::KEY_F, 'f'), (Key::KEY_G, 'g'),
         (Key::KEY_H, 'h'), (Key::KEY_J, 'j'), (Key::KEY_K, 'k'), (Key::KEY_L, 'l'),
         (Key::KEY_Z, 'z'), (Key::KEY_X, 'x'), (Key::KEY_C, 'c'), (Key::KEY_V, 'v'), (Key::KEY_B, 'b'),

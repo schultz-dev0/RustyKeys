@@ -22,10 +22,7 @@ use tracing::{error, info, warn};
 /// Hyprland-visible app_id/class for configuration
 pub const APP_ID: &str = "org.cloudyy.rustykeys";
 
-/// User-facing window title.
 pub const APP_TITLE: &str = "Rusty Keys";
-
-/// Lightweight class fallback for focused window key events.
 fn classify_keyval(keyval: gtk::gdk::Key) -> KeyClass {
     use gtk::gdk::Key;
 

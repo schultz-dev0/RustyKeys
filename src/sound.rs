@@ -28,23 +28,18 @@ impl SoundEngine {
     pub fn new(asset_dir: &Path) -> Self {
         let (stream, handle) = match OutputStream::try_default() {
             Ok(pair) => {
-                info!("output stream initialized");
+                info!("Audio output initialized");
                 (Some(pair.0), Some(pair.1))
             }
             Err(err) => {
-                error!("failed to initialize output stream: {err}");
+                error!("Audio init failed: {err}");
                 (None, None)
             }
         };
 
         let bundled_sounds_dir = asset_dir.join("sounds");
         let override_sounds_dir = config::override_sounds_dir();
-        if let Err(err) = fs::create_dir_all(&override_sounds_dir) {
-            warn!(
-                "failed to ensure override dir {}: {err}",
-                override_sounds_dir.display()
-            );
-        }
+        let _ = fs::create_dir_all(&override_sounds_dir);
 
         let default_sound = ensure_default_sound(&override_sounds_dir, &bundled_sounds_dir);
 
@@ -83,83 +78,36 @@ impl SoundEngine {
         );
 
         let mut key_sounds = HashMap::new();
+        // Map a-z
         for letter in 'a'..='z' {
             let key = letter.to_string();
-            if let Some(path) = resolve_sound(
-                &override_sounds_dir,
-                &bundled_sounds_dir,
-                &format!("{letter}.wav"),
-            ) {
+            if let Some(path) = resolve_sound(&override_sounds_dir, &bundled_sounds_dir, &format!("{letter}.wav")) {
                 key_sounds.insert(key, path);
             }
         }
 
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "space",
-            "space.wav",
-        );
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "enter",
-            "enter.wav",
-        );
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "backspace",
-            "backspace.wav",
-        );
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "tab",
-            "tab.wav",
-        );
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "shift",
-            "shift.wav",
-        );
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "caps_lock",
-            "caps lock.wav",
-        );
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "bracketleft",
-            "[.wav",
-        );
-        insert_if_exists(
-            &mut key_sounds,
-            &override_sounds_dir,
-            &bundled_sounds_dir,
-            "bracketright",
-            "].wav",
-        );
+        // Handle special keys and punctuation
+        let special_mappings = [
+            ("space", "space.wav"),
+            ("enter", "enter.wav"),
+            ("backspace", "backspace.wav"),
+            ("tab", "tab.wav"),
+            ("shift", "shift.wav"),
+            ("caps_lock", "caps lock.wav"),
+            ("bracketleft", "[.wav"),
+            ("bracketright", "].wav"),
+        ];
+
+        for (name, file) in special_mappings {
+            if let Some(path) = resolve_sound(&override_sounds_dir, &bundled_sounds_dir, file) {
+                key_sounds.insert(name.to_string(), path);
+            }
+        }
 
         debug!(
-            "bundled_sounds={} override_sounds={} key_samples={} default={}",
-            bundled_sounds_dir.display(),
-            override_sounds_dir.display(),
+            "Loaded {} key samples. Default: {:?}",
             key_sounds.len(),
-            default_sound
-                .as_ref()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| String::from("none"))
+            default_sound.as_ref().map(|p| p.file_name().unwrap_or_default())
         );
 
         Self {
@@ -173,17 +121,14 @@ impl SoundEngine {
         }
     }
 
-    /// Enable or disable playback globally.
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
     }
 
-    /// Set master output volume in range [0.0, 1.0].
     pub fn set_volume(&mut self, volume: f32) {
         self.volume = volume.clamp(0.0, 1.0);
     }
 
-    /// Play by class when exact key information is unavailable.
     pub fn play_class(&self, class: KeyClass) {
         if !self.enabled {
             return;
@@ -197,7 +142,6 @@ impl SoundEngine {
         self.play_path(path);
     }
 
-    /// Play from a GTK key value with per-key mapping and default fallback.
     pub fn play_keyval(&self, keyval: Key, fallback_class: KeyClass) {
         if !self.enabled {
             return;
@@ -233,40 +177,22 @@ impl SoundEngine {
     }
 
     fn play_path(&self, path: &Path) {
-        let Some(handle) = &self.handle else {
-            warn!("no output stream handle; cannot play {}", path.display());
-            return;
-        };
-        if !path.exists() {
-            warn!("sample not found: {}", path.display());
-            return;
-        }
-
-        let Ok(file) = File::open(path) else {
-            error!("cannot open sample: {}", path.display());
-            return;
-        };
-        let Ok(decoder) = Decoder::new(BufReader::new(file)) else {
-            error!("cannot decode sample: {}", path.display());
-            return;
-        };
-        let Ok(sink) = Sink::try_new(handle) else {
-            error!("failed to create sink for sample: {}", path.display());
-            return;
-        };
+        let Some(handle) = &self.handle else { return; };
+        
+        let Ok(file) = File::open(path) else { return; };
+        let Ok(decoder) = Decoder::new(BufReader::new(file)) else { return; };
+        let Ok(sink) = Sink::try_new(handle) else { return; };
 
         sink.append(decoder.amplify(self.volume));
         sink.detach();
     }
 
-    /// Play default fallback sample if available.
     fn play_default(&self) {
         if let Some(path) = &self.default_sound {
             self.play_path(path);
         }
     }
 
-    /// Prefer default fallback; otherwise use class fallback.
     fn play_default_or_class(&self, fallback_class: KeyClass) {
         if self.default_sound.is_some() {
             self.play_default();

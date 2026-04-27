@@ -1,10 +1,3 @@
-//! Config and path helpers
-//! 
-//! This module owns:
-//! -- App settings
-//! -- User directories for custom sound kits
-//! -- Shared key class parsing
-
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -51,7 +44,6 @@ impl Default for AppConfig {
     }
 }
 
-/// Return the app config directory. Preferred path: ~/.config/rustykeys
 pub fn config_dir() -> PathBuf {
     if let Some(dirs) = ProjectDirs::from("dev", "cloudyy", "rustykeys") {
         return dirs.config_dir().to_path_buf();
@@ -60,7 +52,6 @@ pub fn config_dir() -> PathBuf {
     PathBuf::from("./.rustykeys-config")
 }
 
-/// Path to the main app config file.
 pub fn config_path() -> PathBuf {
     config_dir().join("config.toml")
 }
@@ -81,22 +72,22 @@ pub fn load() -> AppConfig {
 pub fn save(cfg: &AppConfig) -> Result<()> {
     let path = config_path();
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).context("create config dir failed")?;
+        fs::create_dir_all(parent).context("Failed to create config directory")?;
     }
 
-    let serialized = toml::to_string_pretty(cfg).context("serialize config failed")?;
+    let serialized = toml::to_string_pretty(cfg).context("Failed to serialize config")?;
 
     let parent = path
         .parent()
-        .context("config parent path missing")?;
+        .context("Config parent path missing")?;
     let mut temp = tempfile::NamedTempFile::new_in(parent)
-        .context("create temp config failed")?;
+        .context("Failed to create temp config file")?;
 
     temp.write_all(serialized.as_bytes())
-        .context("write temp config failed")?;
-    temp.flush().context("flush temp config failed")?;
+        .context("Failed to write to temp config")?;
+    temp.flush().context("Failed to flush temp config")?;
 
-    temp.persist(&path).context("persist config failed")?;
+    temp.persist(&path).context("Failed to save config file")?;
 
     Ok(())
 }

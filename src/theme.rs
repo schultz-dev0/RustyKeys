@@ -11,7 +11,6 @@ pub struct ThemeRuntime {
 }
 
 impl ThemeRuntime {
-    /// Load app CSS plus Matugen CSS, if available.
     pub fn setup(display: &gdk::Display, asset_dir: &Path, configured_matugen: Option<&str>) -> Self {
         let app_provider = CssProvider::new();
         let app_css = asset_dir.join("style.css");
@@ -67,7 +66,6 @@ impl ThemeRuntime {
     }
 }
 
-/// Resolve Matugen CSS path from config/env/default candidate paths.
 pub fn resolve_matugen_css(configured: Option<&str>) -> Option<PathBuf> {
     if let Some(path) = configured {
         let p = PathBuf::from(path);
