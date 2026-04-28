@@ -33,6 +33,13 @@ windowrule {
 
 ## Install
 
+AUR:
+```bash
+yay -S rustykeys
+```
+
+Or manually:
+
 ```bash
 git clone https://github.com/schultz-dev0/RustyKeys.git
 ```
