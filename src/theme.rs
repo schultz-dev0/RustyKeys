@@ -107,9 +107,18 @@ pub fn resolve_asset_dir() -> PathBuf {
         }
     }
 
-    let system_path = PathBuf::from("/usr/share/rusty_keys/assets");
-    if system_path.exists() {
-        return system_path;
+    let system_paths = [
+        "/usr/share/rustykeys/assets",
+        "/usr/share/rusty_keys/assets",
+        "/usr/local/share/rustykeys/assets",
+        "/usr/local/share/rusty_keys/assets",
+    ];
+
+    for path in system_paths {
+        let p = PathBuf::from(path);
+        if p.exists() {
+            return p;
+        }
     }
 
     PathBuf::from("./assets")

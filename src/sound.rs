@@ -177,12 +177,36 @@ impl SoundEngine {
     }
 
     fn play_path(&self, path: &Path) {
-        let Some(handle) = &self.handle else { return; };
-        
-        let Ok(file) = File::open(path) else { return; };
-        let Ok(decoder) = Decoder::new(BufReader::new(file)) else { return; };
-        let Ok(sink) = Sink::try_new(handle) else { return; };
+        let Some(handle) = &self.handle else {
+            error!("Cannot play sound: No audio output handle available");
+            return;
+        };
 
+        let file = match File::open(path) {
+            Ok(f) => f,
+            Err(err) => {
+                error!("Failed to open sound file {}: {}", path.display(), err);
+                return;
+            }
+        };
+
+        let decoder = match Decoder::new(BufReader::new(file)) {
+            Ok(d) => d,
+            Err(err) => {
+                error!("Failed to decode sound file {}: {}", path.display(), err);
+                return;
+            }
+        };
+
+        let sink = match Sink::try_new(handle) {
+            Ok(s) => s,
+            Err(err) => {
+                error!("Failed to create audio sink for {}: {}", path.display(), err);
+                return;
+            }
+        };
+
+        debug!("Playing sound: {}", path.display());
         sink.append(decoder.amplify(self.volume));
         sink.detach();
     }
